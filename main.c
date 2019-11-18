@@ -40,6 +40,7 @@ void usage() {
   printf("    -p, --pthrshld:  pattern threshold as a fraction of |matrix| (default: 0.00001)\n");
   printf("    -n, --num_kmers: number of k-mers to sample, randomly (default: all)\n");
   printf("    --random: probabilistically assign present/absent based on coverage\n");
+  printf("    --norm: normalize presence/absence so that the 'first' sample is always 0\n");
   printf("  count -c <5> -m <sample.pam> [-m <sample.pam> ...]\n");
   printf("    -m, --matrix:    matrix produced by 'pam make'\n");
   printf("  triangle -c <5> <sample.pam> <sample.pam> [...]\n");
@@ -70,6 +71,7 @@ static struct option long_options[] = {
   { "pthrshld",    required_argument, 0, 'p' },
   { "num_kmers",   required_argument, 0, 'n' },
   { "random",      no_argument,       0, 0 },
+  { "norm",        no_argument,       0, 0 },
   { "help",        no_argument,       0, 'h' },
   { "verbose",     no_argument,       0, 'v' },
   { 0, 0, 0, 0}
@@ -163,6 +165,23 @@ float get_covg(char* name) {
     return 31.8;
   if(strcmp(name, "taxonJ") == 0)
     return 20.8;
+  if(strcmp(name, "Drosophila_kepulauana") == 0)
+    return 27;
+  // k-mer covg mode for these is <5
+  //if(strcmp(name, "Drosophila_kohkoa") == 0)
+  //if(strcmp(name, "Drosophila_sp") == 0) # taxon F
+  //if(strcmp(name, "Drosophila_niveifrons") == 0)
+  if(strcmp(name, "Drosophila_sulfurigaster_albostrigata") == 0)
+    return 49;
+  if(strcmp(name, "Drosophila_sulfurigaster_bilimbata") == 0)
+    return 27;
+  if(strcmp(name, "Drosophila_albomicans") == 0)
+    return 28;
+  if(strcmp(name, "Drosophila_nasuta") == 0)
+    return 28;
+  if(strcmp(name, "Drosophila_sulfurigaster_sulfurigaster") == 0)
+    return 13;
+
   fprintf(stderr, "ERROR: no coverage hardcoded for '%s', all present k-mers will be used\n       -- get Jeremy to implement a real covg estimator!\n", name);
   return 0;
 }
@@ -336,6 +355,7 @@ int main(int argc, char *argv[]) {
   char* out_file = NULL;
   int num_kmers = 0;
   int random_pa = 0;
+  int norm = 0;
 
   kvec_t(char*) read_fastas;
   kv_init(read_fastas);
@@ -392,6 +412,7 @@ int main(int argc, char *argv[]) {
       case 0:
         //fprintf(stderr, "option %s\n", long_options[long_idx].name);
         if (long_idx == 8) random_pa = 1; // --random
+        if (long_idx == 9) norm = 1; // --norm
         //else if (long_idx == 1) fn = atof(optarg); // --fn
         break;
       default:
@@ -597,7 +618,7 @@ int main(int argc, char *argv[]) {
           bits = bits + (1<<m);
         }
       }
-      //if(bits & 1 == 1) bits = ~bits; // normalize bits so that the first bit is always 0
+      if(norm && bits & 1 == 1) bits = ~bits; // normalize bits so that the first bit is always 0
       bin = kh_put(patternHash, h, bits, &absent);
       if(absent) { // bin is empty (unset)
         kh_value(h, bin) = 1;
@@ -641,7 +662,7 @@ int main(int argc, char *argv[]) {
             }
           }
           if(++r >= row_len) {
-            fprintf(stderr, "printing batch with length %d\n", r);
+            //fprintf(stderr, "printing batch with length %d\n", r);
             for(i = 0; i < kv_size(matrices); i++) {
               fprintf(fout, "%s  %s\n", kv_A(matrices, i), sample_seqs[i]);
             }
@@ -651,7 +672,7 @@ int main(int argc, char *argv[]) {
         }
       }
       // last batch (<row_len)
-      fprintf(stderr, "printing last batch with length %d\n", r);
+      //fprintf(stderr, "printing last batch with length %d\n", r);
       if(r > 0) {
         for(i = 0; i < kv_size(matrices); i++) {
           sample_seqs[i][r] = '\0';
